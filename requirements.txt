@@ -1,0 +1,10 @@
+diffusers
+librosa
+matplotlib
+opencv-python
+pillow
+pydub
+scipy
+tqdm
+pilgram
+numexpr
