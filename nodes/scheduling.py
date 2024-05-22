@@ -17,6 +17,7 @@ import comfy.samplers
 import comfy.model_management
 import nodes
 
+from .. import MENU_NAME, SUB_MENU_NAME, logger
 from ..modules.transform import (
     PerlinNoise, 
     OrganicPerlinCameraScheduler, 
@@ -39,7 +40,7 @@ if "BNK_CLIPTextEncodeAdvanced" in nodes.NODE_CLASS_MAPPINGS:
     USE_BLK = True
 
 if USE_BLK:
-    print(f"\n[Animation-Keyframing] Found `\33[1mComfyUI_ADV_CLIP_emb\33[0m`. Using \33[93mBLK Advanced CLIPTextEncode\33[0m for Conditioning Sequencing\n")
+    logger.info(f"\n[Animation-Keyframing] Found `\33[1mComfyUI_ADV_CLIP_emb\33[0m`. Using \33[93mBLK Advanced CLIPTextEncode\33[0m for Conditioning Sequencing\n")
     blk_adv = BLK_ADV()
 
 class AnyType(str):
@@ -49,8 +50,8 @@ class AnyType(str):
 WILDCARD = AnyType("*")
 
 def log_curve(label, value):
-    print(f"\t\033[1m\033[93m{label}:\033[0m")
-    pprint(value, indent=4)
+    logger.info(f"\t\033[1m\033[93m{label}:\033[0m")
+    logger.data(value, indent=4)
 
 class SaltOPAC:
     """
@@ -92,7 +93,7 @@ class SaltOPAC:
     RETURN_TYPES = ("LIST", "LIST", "LIST", "LIST", "LIST", "LIST", "LIST", "LIST")
     RETURN_NAMES = ("zoom_schdule_list", "angle_schdule_list", "translation_x_schdule_list", "translation_y_schdule_list", "translation_z_schdule_list", "rotation_3d_x_schdule_list", "rotation_3d_y_schdule_list", "rotation_3d_z_schdule_list")
     FUNCTION = "execute"
-    CATEGORY = "SALT/Scheduling"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Scheduling"
 
     def process_kwargs(self, **kwargs):
         self.use_wiggle = kwargs.get('use_wiggle', True)
@@ -177,7 +178,7 @@ class SaltOPAC:
         if kwargs.__contains__("opac_perlin_settings"):
             perlin_settings = kwargs.pop("opac_perlin_settings")
             kwargs.update(perlin_settings)
-            print("\033[1m\033[94mOPAC Perlin Settings applied!:\033[0m")
+            logger.info("\033[1m\033[94mOPAC Perlin Settings applied!:\033[0m")
 
         # Process the input values
         self.process_kwargs(**kwargs)
@@ -200,7 +201,7 @@ class SaltOPAC:
             ]
         )
             
-        print("\033[1m\033[94mOPAC Schedule Curves:\033[0m")
+        logger.info("\033[1m\033[94mOPAC Schedule Curves:\033[0m")
 
         log_curve("zoom", zoom)
         log_curve("angle", angle)
@@ -211,7 +212,7 @@ class SaltOPAC:
         log_curve("rotation_3d_y", rotation_3d_y)
         log_curve("rotation_3d_z", rotation_3d_z)
 
-        print("")
+        logger.info("")
 
         return zoom, angle, translation_x, translation_y, translation_z, rotation_3d_x, rotation_3d_y, rotation_3d_z
 
@@ -262,7 +263,7 @@ class SaltOPACPerlinSettings:
     RETURN_TYPES = ("DICT",)
     RETURN_NAMES = ("opac_perlin_settings",)
     FUNCTION = "process"
-    CATEGORY = "SALT/Scheduling"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Scheduling"
 
     def process(self, **kwargs):
         return (kwargs, )
@@ -284,7 +285,7 @@ class SaltScheduleConverter:
     RETURN_TYPES = ("FLOATS", "FLOAT", "INT")
     RETURN_NAMES = ("floats", "float", "int")
     FUNCTION = "convert"
-    CATEGORY = "SALT/Scheduling"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Scheduling"
 
     def convert(self, schedule_list):
         int_schedule = [int(round(val)) for val in schedule_list]
@@ -320,7 +321,7 @@ class SaltScheduleVariance:
     RETURN_TYPES = ("LIST",)
     RETURN_NAMES = ("schedule_list",)
     FUNCTION = "opac_variance"
-    CATEGORY = "SALT/Scheduling"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Scheduling"
 
     def sample_perlin(self, frame_index, value, tremor_scale, octaves, persistence, lacunarity):
         noise = self.perlin_noise.sample(self.noise_base + frame_index * 0.1, scale=1.0, octaves=octaves, persistence=persistence, lacunarity=lacunarity)
@@ -363,7 +364,7 @@ class SaltSchedule2ExecSchedule:
     RETURN_NAMES = ("float",)
     OUTPUT_IS_LIST = (True,)
     FUNCTION = "convert"
-    CATEGORY = "SALT/Scheduling"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Scheduling"
 
     def convert(self, list_input):
         return (list_input, )
@@ -395,7 +396,7 @@ class SaltLayerScheduler:
     RETURN_TYPES = ("LIST",)
     RETURN_NAMES = ("schedule_list",)
     FUNCTION = "execute"
-    CATEGORY = "SALT/Scheduling/Parallax Motion"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Scheduling/Parallax Motion"
 
     def __init__(self):
         self.scheduler = None
@@ -456,7 +457,7 @@ class SaltLayerExtractor:
     RETURN_TYPES = ("LIST", "LIST", "LIST")
     RETURN_NAMES = ("zoom_schedule_lsit", "x_schedule_list", "y_schedule_list")
     FUNCTION = "extract"
-    CATEGORY = "SALT/Scheduling/Parallax Motion"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Scheduling/Parallax Motion"
 
     def extract(self, **kwargs):
         animation_data = kwargs.get("float_layers", [])
@@ -470,7 +471,7 @@ class SaltLayerExtractor:
         x_values = [frame[1] for frame in selected_layer_data]
         y_values = [frame[2] for frame in selected_layer_data]
 
-        print("\033[1m\033[94mOPAC Schedule Curves:\033[0m")
+        logger.info("\033[1m\033[94mOPAC Schedule Curves:\033[0m")
         log_curve("Zoom Values", zoom_values)
         log_curve("X Values", x_values)
         log_curve("Y Values", y_values)
@@ -516,7 +517,7 @@ class SaltParallaxMotion:
     RETURN_TYPES = ("FLOAT", "FLOAT", "FLOAT", "FLOAT", "FLOAT", "FLOAT", "FLOAT", "FLOAT", "FLOAT", "FLOAT", "FLOAT", "FLOAT")
     RETURN_NAMES = ("front_x_min", "front_x_max", "front_y_min", "front_y_max", "front_z_min", "front_z_max", "back_x_min", "back_x_max", "back_y_min", "back_y_max", "back_z_min", "back_z_max")
     FUNCTION = "generate_parameters"
-    CATEGORY = "SALT/Scheduling/Parallax Motion"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Scheduling/Parallax Motion"
 
     def generate_parameters(self, zoom_preset, horizontal_pan_preset, vertical_pan_preset, 
                         custom_x_min, custom_x_max, custom_y_min, custom_y_max, 
@@ -615,13 +616,13 @@ class SaltFloatScheduler:
     RETURN_TYPES = ("LIST", "INT")
     RETURN_NAMES = ("schedule_list", "schedule_length")
     FUNCTION = "generate_sequence"
-    CATEGORY = "SALT/Scheduling"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Scheduling"
 
     def apply_curve(self, sequence, mode):
         if mode in easing_functions.keys():
             sequence = [easing_functions[mode](t) for t in sequence]
         else:
-            print(f"The easing mode `{mode}` does not exist in the valid easing functions: {', '.join(easing_functions.keys())}")
+            logger.error(f"The easing mode `{mode}` does not exist in the valid easing functions: {', '.join(easing_functions.keys())}")
         return sequence
 
     def apply_perlin_noise(self, sequence, scale, octaves, persistence, lacunarity):
@@ -671,7 +672,7 @@ class SaltKSamplerSequence:
     RETURN_TYPES = ("LATENT",)
 
     FUNCTION = "sample"
-    CATEGORY = "SALT/Scheduling/Sampling"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Scheduling/Sampling"
 
     def inject_noise(self, latent_image, noise_strength):
         noise = torch.randn_like(latent_image) * noise_strength
@@ -717,7 +718,7 @@ class SaltKSamplerSequence:
 
         sequence_loop_count = len(positive_sequence)
 
-        print(f"Starting loop sequence with {sequence_loop_count} frames.")
+        logger.info(f"Starting loop sequence with {sequence_loop_count} frames.")
 
         positive_conditioning = None
         negative_conditioning = None
@@ -746,24 +747,24 @@ class SaltKSamplerSequence:
             denoise = denoise_sequence[loop_count] if loop_count > 0 else denoise_start
 
             if inject_noise and loop_count > 0:
-                print(f"Injecting noise at {noise_strength_sequence[loop_count]} strength.")
+                logger.info(f"Injecting noise at {noise_strength_sequence[loop_count]} strength.")
                 latent_input['samples'] = self.inject_noise(latent_input['samples'], noise_strength_sequence[loop_count])
 
             if unsample_latents and loop_count > 0:
                 force_full_denoise = not (loop_count > 0 or loop_count <= steps - 1)
                 disable_noise = False
-                print("Unsampling latent image.")
+                logger.info("Unsampling latent image.")
                 unsampled_latent = unsample(model=model, seed=seed_sequence[loop_count], cfg=cfg, sampler_name=sampler_name, steps=steps+1, end_at_step=steps, scheduler=scheduler, normalize=False, positive=positive_conditioning, negative=negative_conditioning, latent_image=latent_input)[0]
                 if inject_noise and loop_count > 0:
-                    print(f"Injecting noise at {noise_strength_sequence[loop_count]} strength.")
+                    logger.info(f"Injecting noise at {noise_strength_sequence[loop_count]} strength.")
                     unsampled_latent['samples'] = self.inject_noise(unsampled_latent['samples'], noise_strength_sequence[loop_count])
-                print(f"Sampling Denoise: {denoise}")
-                print("Sampling.")
+                logger.info(f"Sampling Denoise: {denoise}")
+                logger.info("Sampling.")
                 sample = nodes.common_ksampler(model, seed_sequence[loop_count], steps, cfg, sampler_name, scheduler, positive_conditioning, negative_conditioning, unsampled_latent, denoise=denoise, disable_noise=disable_noise, start_step=start_at_step, last_step=end_at_step, force_full_denoise=force_full_denoise)[0]['samples']
             else:
 
                 if inject_noise and loop_count > 0:
-                    print(f"Injecting noise at {noise_strength_sequence[loop_count]} strength.")
+                    logger.info(f"Injecting noise at {noise_strength_sequence[loop_count]} strength.")
                     latent_input['samples'] = self.inject_noise(latent_input['samples'], noise_strength_sequence[loop_count])
                 sample = nodes.common_ksampler(model, seed_sequence[loop_count], steps, cfg, sampler_name, scheduler, positive_conditioning, negative_conditioning, latent_input, denoise=denoise)[0]['samples']
 
@@ -805,7 +806,7 @@ class SaltCLIPTextEncodeSequence:
     RETURN_NAMES = ("conditioning_sequence", "frame_count")
 
     FUNCTION = "encode"
-    CATEGORY = "SALT/Scheduling/Conditioning"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Scheduling/Conditioning"
 
     def encode(self, clip, text, frame_count, token_normalization, weight_interpretation):
         
@@ -880,7 +881,7 @@ class SaltConditioningSetMaskAndCombine:
 
     RETURN_TYPES = ("CONDITIONING", "CONDITIONING")
     FUNCTION = "process"
-    CATEGORY = "SALT/Scheduling/Conditioning"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Scheduling/Conditioning"
 
     def process(self, positive_schedule_a, negative_schedule_a, positive_schedule_b, negative_schedule_b, mask_a, mask_b, mask_strengths_a=[1], mask_strengths_b=[1], set_cond_area="default"):
         set_area_to_bounds = set_cond_area != "default"
@@ -933,7 +934,7 @@ class SaltThresholdSchedule:
     RETURN_NAMES = ("value_schedule_list",)
 
     FUNCTION = "generate_sequence"
-    CATEGORY = "SALT/Scheduling"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Scheduling"
 
     def generate_sequence(self, float_schedule, schedule_values, max_frames, output_mode):
         try:
@@ -992,7 +993,7 @@ class SaltListOperation:
     RETURN_TYPES = (WILDCARD,)
     RETURN_NAMES = ("schedule_list",)
     FUNCTION = "calculate"
-    CATEGORY = "SALT/Scheduling/Filter"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Scheduling/Filter"
 
     def calculate(self, operation, output_type, schedule_list_a=[0], schedule_list_b=[0], expression=""):
         if not isinstance(schedule_list_a, list):
@@ -1098,7 +1099,7 @@ class SaltListClamp:
     RETURN_TYPES = ("LIST",)
     RETURN_NAMES = ("schedule_list",)
     FUNCTION = "clamp_values"
-    CATEGORY = "SALT/Scheduling/Filter"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Scheduling/Filter"
 
     def clamp_values(self, schedule_list, min_value, max_value):
         if min_value > max_value:
@@ -1123,7 +1124,7 @@ class SaltListLinearInterpolation:
     RETURN_TYPES = ("LIST",)
     RETURN_NAMES = ("schedule_list",)
     FUNCTION = "lerp"
-    CATEGORY = "SALT/Scheduling/Filter"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Scheduling/Filter"
 
     def lerp(self, schedule_list_a, schedule_list_b, interpolation_factor):
         if len(schedule_list_a) != len(schedule_list_b):
@@ -1155,7 +1156,7 @@ class SaltScheduleListExponentialFade:
     RETURN_TYPES = ("LIST",)
     RETURN_NAMES = ("schedule_list", )
     FUNCTION = "exponential_fade"
-    CATEGORY = "SALT/Scheduling/Filter"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Scheduling/Filter"
 
     def exponential_fade(self, schedule_list, fade_type, strength, start_index=0):
         length = len(schedule_list)
@@ -1205,7 +1206,7 @@ class SaltScheduleRandomValues:
     RETURN_TYPES = ("LIST",)
     RETURN_NAMES = ("schedule_list", )
     FUNCTION = "generate_random"
-    CATEGORY = "SALT/Scheduling"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Scheduling"
 
     def generate_random(self, count, min_value, max_value, force_integer=False):
         if min_value >= max_value:
@@ -1234,7 +1235,7 @@ class SaltScheduleSmoothing:
     RETURN_TYPES = ("LIST",)
     RETURN_NAMES = ("schedule_list", )
     FUNCTION = "smooth"
-    CATEGORY = "SALT/Scheduling/Filter"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Scheduling/Filter"
 
     def smooth(self, schedule_list, smoothing_factor):
         smoothed_schedule = schedule_list[:]
@@ -1260,7 +1261,7 @@ class SaltCyclicalSchedule:
     RETURN_TYPES = ("LIST",)
     RETURN_NAMES = ("schedule_list",)
     FUNCTION = "generate_cyclical"
-    CATEGORY = "SALT/Scheduling/Filter"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Scheduling/Filter"
 
     def generate_cyclical(self, schedule_list, start_index, end_index, repetitions, ping_pong=False):
         if end_index < start_index:
@@ -1293,7 +1294,7 @@ class SaltScheduleSplit:
     RETURN_TYPES = ("LIST", "LIST")
     RETURN_NAMES = ("schedule_list_a", "schedule_list_b")
     FUNCTION = "split"
-    CATEGORY = "SALT/Scheduling"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Scheduling"
 
     def split(self, schedule_list, split_index):
         if split_index >= len(schedule_list) or split_index < 0:
@@ -1316,7 +1317,7 @@ class SaltScheduleMerge:
     RETURN_TYPES = ("LIST",)
     RETURN_NAMES = ("schedule_list", )
     FUNCTION = "append"
-    CATEGORY = "SALT/Scheduling/Filter"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Scheduling/Filter"
 
     def append(self, schedule_list_a, schedule_list_b):
         appended_list = schedule_list_a + schedule_list_b
@@ -1346,7 +1347,7 @@ class SaltKeyframeVisualizer:
     RETURN_NAMES = ()
     OUTPUT_NODE = True
     FUNCTION = "visualize_keyframes"
-    CATEGORY = "SALT/Scheduling/Util"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Scheduling/Util"
 
     def visualize_keyframes(self, schedule_list, start_frame=0, end_frame=-1, simulate_stereo=False, frame_rate=24.0, schedule_list_a=None, schedule_list_b=None, schedule_list_c=None):
         TEMP = folder_paths.get_temp_directory()
@@ -1448,7 +1449,7 @@ class SaltKeyframeMetrics:
     RETURN_NAMES = ("value_min", "value_max", "value_sum", "value_avg", "abs_sum", "abs_avg", "duration")
 
     FUNCTION = "schedule_metrics"
-    CATEGORY = "SALT/Scheduling/Util"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Scheduling/Util"
 
     def schedule_metrics(self, schedule_list, start_frame=0, end_frame=-1, frame_rate=24.0):
         if end_frame == -1 or end_frame > len(schedule_list):
@@ -1494,7 +1495,7 @@ class SaltKeyframeScheduler:
     RETURN_NAMES = ("schedule_list", )
 
     FUNCTION = "keyframe_schedule"
-    CATEGORY = "SALT/Scheduling"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Scheduling"
 
     def keyframe_schedule(self, keyframe_schedule, easing_mode, end_frame=0, ndigits=2, a=None, b=None):
         if a and not isinstance(a, (int, float, bool, list)):
@@ -1541,10 +1542,10 @@ class SaltKeyframeSchedulerBFN:
     RETURN_NAMES = ("schedule_list", )
 
     FUNCTION = "keyframe_schedule"
-    CATEGORY = "SALT/Scheduling"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Scheduling"
 
     def keyframe_schedule(self, keyframe_schedule, easing_mode, end_frame=0, ndigits=2, a=[0], b=[0], c=[0], d=[0], e=[0], f=[0], g=[0], h=[0]):
-        print("Received keyframe_schedule:", keyframe_schedule)
+        logger.info("Received keyframe_schedule:", keyframe_schedule)
         custom_vars = {"a": a, "b": b, "c": c, "d": d, "e": e, "f": f, "g": g, "h": h}
         scheduler = KeyframeScheduler(end_frame=end_frame, custom_vars=custom_vars)
         schedule = scheduler.generate_schedule(keyframe_schedule, easing_mode=easing_mode, ndigits=ndigits)

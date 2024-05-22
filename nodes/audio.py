@@ -22,6 +22,7 @@ from diffusers import AudioLDM2Pipeline
 import folder_paths
 from comfy.utils import ProgressBar
 
+from .. import MENU_NAME, SUB_MENU_NAME, logger
 from ..modules.easing import easing_functions
 from ..modules.utils import ffmpeg_path
 
@@ -65,7 +66,7 @@ class SaltLoadAudio:
     RETURN_TYPES = ("AUDIO", "FLOAT", "INT", "INT")
     RETURN_NAMES = ("audio", "bpm", "frame_rate", "frame_count")
     FUNCTION = "load_audio"
-    CATEGORY = "SALT/Audio"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Audio"
 
     def load_audio(self, file_path, start_seconds, duration_seconds=0.0, manual_bpm=0.0, frame_rate=24.0):
         INPUT = folder_paths.get_input_directory()
@@ -129,7 +130,7 @@ class SaltLoadAudio:
             h.update(str(os.path.getmtime(filename)).encode())
             return h.hexdigest()
         except Exception as e:
-            print(e)
+            logger.error(e)
             return float("NaN")
 
     @classmethod
@@ -155,7 +156,7 @@ class SaltSaveAudio:
     RETURN_NAMES = ()
     OUTPUT_NODE = True
     FUNCTION = "save_audio"
-    CATEGORY = "SALT/Audio"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Audio"
 
     def save_audio(self, audio, filename_prefix="audio_sfx", format="wav"):
         OUTPUT = folder_paths.get_output_directory()
@@ -163,7 +164,7 @@ class SaltSaveAudio:
 
         file_extension = format.lower()
         if format not in ['wav', 'mp3', 'flac']:
-            print(f"Unsupported format: {format}. Defaulting to WAV.")
+            logger.error(f"Unsupported format: {format}. Defaulting to WAV.")
             file_extension = "wav"
             format = "wav"
 
@@ -177,7 +178,7 @@ class SaltSaveAudio:
         audio_segment = AudioSegment.from_file(io.BytesIO(audio), format="wav")
         audio_segment.export(full_path, format=format)
 
-        print(f"Audio saved to {filename} in {format.upper()} format")
+        logger.info(f"Audio saved to {filename} in {format.upper()} format")
         return ()
 
 
@@ -188,27 +189,21 @@ class SaltAudioFramesyncSchedule:
         easing_fns.insert(0, "None")
         return {
             "required": {
-                "audio": ("AUDIO", ),
+                "audio": ("AUDIO",),
                 "amp_control": ("FLOAT", {"min": 0.1, "max": 1024.0, "default": 1.0, "step": 0.01}),
                 "amp_offset": ("FLOAT", {"min": 0.0, "max": 1023.0, "default": 0.0, "step": 0.01}),
                 "frame_rate": ("INT", {"min": 1, "max": 244, "default": 8}),
-                "start_frame": ("INT", {"min": 0, "default": 0}), 
+                "start_frame": ("INT", {"min": 0, "default": 0}),
                 "end_frame": ("INT", {"min": -1}),
-                "curves_mode": (easing_fns, ),
-            }, 
-            "optional": {
-                "frequency_low": ("FLOAT", {"min": 0, "max": 22050, "default": 250, "step": 0.01}),
-                "frequency_high": ("FLOAT", {"min": 0, "max": 22050, "default": 4000, "step": 0.01})
+                "curves_mode": (easing_fns,)
             }
-        } 
+        }
 
-    RETURN_TYPES = ("LIST", "LIST", "LIST", "LIST", "LIST", "LIST", "LIST", "LIST", "LIST", "LIST", "INT", "INT")
-    RETURN_NAMES = ("left_low_schedule", "left_mid_schedule", "left_high_schedule", "right_low_schedule", 
-                    "right_mid_schedule", "right_high_schedule", "average_low", "average_mid", "average_high", 
-                    "average_schedule", "frame_count", "frame_rate")
-    
+    RETURN_TYPES = ("LIST", "INT", "INT")
+    RETURN_NAMES = ("average_sum", "frame_count", "frame_rate")
+
     FUNCTION = "schedule"
-    CATEGORY = "SALT/Audio/Scheduling"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Audio/Scheduling"
 
     def dbfs_floor_ceiling(self, audio_segment):
         min_dbfs = 0
@@ -224,11 +219,11 @@ class SaltAudioFramesyncSchedule:
         if dbfs == -float('inf'):
             return amp_offset
         else:
-            normalized_loudness = (dbfs - dbfs_min) / (0 - dbfs_min)
+            normalized_loudness = (dbfs - dbfs_min) / (dbfs_max - dbfs_min)
             controlled_loudness = normalized_loudness * amp_control
             adjusted_loudness = controlled_loudness + amp_offset
             return max(amp_offset, min(adjusted_loudness, amp_control + amp_offset))
-        
+
     def interpolate_easing(self, values, easing_function):
         if len(values) < 3 or easing_function == "None":
             return values
@@ -245,95 +240,40 @@ class SaltAudioFramesyncSchedule:
         interpolated_values.append(values[-1])
         return interpolated_values
 
-    def apply_easing(self, output, curves_mode):
-        if curves_mode not in easing_functions or curves_mode == "None":
-            return output
-        easing_function = easing_functions[curves_mode]
-        for key in ['left', 'right', 'average']:
-            if key in ['left', 'right']:
-                for subkey in output[key].keys():
-                    output[key][subkey] = self.interpolate_easing(output[key][subkey], easing_function)
-            else:
-                output[key] = self.interpolate_easing(output[key], easing_function)
-        return output
-
-    def schedule(self, audio, amp_control, amp_offset, frame_rate, start_frame, end_frame, curves_mode, frequency_low=250, frequency_high=4000):
+    def schedule(self, audio, amp_control, amp_offset, frame_rate, start_frame, end_frame, curves_mode):
         audio_segment = AudioSegment.from_file(io.BytesIO(audio), format="wav")
         
         frame_duration_ms = int(1000 / frame_rate)
         start_ms = start_frame * frame_duration_ms
-        
         total_length_ms = len(audio_segment)
         total_frames = total_length_ms // frame_duration_ms
-
-        if end_frame <= 0:
-            end_ms = total_length_ms
-        else:
-            end_ms = min(end_frame * frame_duration_ms, total_length_ms)
+        end_ms = total_length_ms if end_frame <= 0 else min(end_frame * frame_duration_ms, total_length_ms)
 
         audio_segment = audio_segment[start_ms:end_ms]
-
-        if audio_segment.channels == 1:
-            audio_segment = audio_segment.set_channels(2)
-
         dbfs_min, dbfs_max = self.dbfs_floor_ceiling(audio_segment)
 
-        low_pass = audio_segment.low_pass_filter(frequency_low)
-        high_pass = audio_segment.high_pass_filter(frequency_high)
-        band_pass = audio_segment.high_pass_filter(frequency_low).low_pass_filter(frequency_high)
+        output = {'average': {'sum': []}}
 
-        output = {
-            'left': {'low': [], 'mid': [], 'high': []},
-            'right': {'low': [], 'mid': [], 'high': []},
-            'average': []
-        }
-
-        max_frames = end_frame - start_frame
-
+        max_frames = (end_ms - start_ms) // frame_duration_ms
         for frame_start_ms in range(0, (max_frames * frame_duration_ms), frame_duration_ms):
             frame_end_ms = frame_start_ms + frame_duration_ms
-
             frame_segment = audio_segment[frame_start_ms:frame_end_ms]
+
             overall_loudness = self.dbfs2loudness(frame_segment.dBFS, amp_control, amp_offset, dbfs_min, dbfs_max)
-            output['average'].append(overall_loudness)
-
-            for channel_index in range(2):
-                channel_filters = [low_pass, band_pass, high_pass]
-                channel_key = 'left' if channel_index == 0 else 'right'
-
-                for band, filter_segment in zip(['low', 'mid', 'high'], channel_filters):
-                    frame_segment = filter_segment[frame_start_ms:frame_end_ms]
-                    loudness = self.dbfs2loudness(frame_segment.dBFS, amp_control, amp_offset, dbfs_min, dbfs_max)
-                    output[channel_key][band].append(loudness)
+            output['average']['sum'].append(overall_loudness)
 
         if curves_mode != "None":
-            output = self.apply_easing(output, curves_mode)
+            output['average']['sum'] = self.interpolate_easing(output['average']['sum'], easing_functions[curves_mode])
 
-        average_low = [round((l + r) / 2, 2) for l, r in zip(output['left']['low'], output['right']['low'])]
-        average_mid = [round((l + r) / 2, 2) for l, r in zip(output['left']['mid'], output['right']['mid'])]
-        average_high = [round((l + r) / 2, 2) for l, r in zip(output['left']['high'], output['right']['high'])]
-
-        for side in ['left', 'right']:
-            for band in ['low', 'mid', 'high']:
-                output[side][band] = [round(value, 2) for value in output[side][band]]
-        output['average'] = [round(value, 2) for value in output['average']]
+        output['average']['sum'] = [round(value, 2) for value in output['average']['sum']]
 
         return (
-            output["left"]["low"], 
-            output["left"]["mid"], 
-            output["left"]["high"], 
-            output["right"]["low"], 
-            output["right"]["mid"], 
-            output["right"]["high"], 
-            average_low, 
-            average_mid, 
-            average_high, 
-            output["average"], 
-            max_frames, 
+            output['average']['sum'],
+            max_frames,
             frame_rate
         )
-
-
+    
+    
 class SaltAudio2VHS:
     @classmethod
     def INPUT_TYPES(cls):
@@ -347,7 +287,7 @@ class SaltAudio2VHS:
     RETURN_NAMES = ("vhs_audio",)
 
     FUNCTION = "convert"
-    CATEGORY = "SALT/Audio/Util"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Audio/Util"
 
     def convert(self, audio):
         return (lambda : audio,)
@@ -366,7 +306,7 @@ class SaltChangeAudioVolume:
     RETURN_TYPES = ("AUDIO",)
     RETURN_NAMES = ("audio",)
     FUNCTION = "change_volume"
-    CATEGORY = "SALT/Audio/Process"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Audio/Process"
 
     def change_volume(self, audio_data, volume_decibals):
         audio_segment = AudioSegment.from_file(io.BytesIO(audio_data), format="wav")
@@ -391,25 +331,28 @@ class SaltAudioFade:
     RETURN_TYPES = ("AUDIO", )
     RETURN_NAMES = ("audio", )
     FUNCTION = "apply_fade"
-    CATEGORY = "SALT/Audio/Process"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Audio/Process"
+
 
     def apply_fade(self, audio, fade_type, fade_duration, fade_start=0):
         audio_segment = AudioSegment.from_file(io.BytesIO(audio), format="wav")
 
         start_ms = int(fade_start * 1000)
         duration_ms = int(fade_duration * 1000)
+        end_fade_ms = start_ms + duration_ms
 
         before_fade = audio_segment[:start_ms]
-        during_and_after_fade = audio_segment[start_ms:]
+        during_fade = audio_segment[start_ms:end_fade_ms]
+        after_fade = audio_segment[end_fade_ms:]
 
         if fade_type == "in":
-            faded_part = during_and_after_fade.fade_in(duration_ms)
+            faded_part = during_fade.fade_in(duration_ms)
         else:
-            faded_part = during_and_after_fade.fade_out(duration_ms)
+            faded_part = during_fade.fade_out(duration_ms)
 
-        output = before_fade + faded_part
+        output = before_fade + faded_part + after_fade
 
-        return(get_buffer(output), )
+        return (get_buffer(output), )
 
 
 class SaltAudioFrequencyBoost:
@@ -427,7 +370,7 @@ class SaltAudioFrequencyBoost:
     RETURN_TYPES = ("AUDIO",)
     RETURN_NAMES = ("audio",)
     FUNCTION = "boost_frequency"
-    CATEGORY = "SALT/Audio/Effect"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Audio/Effect"
 
     def boost_frequency(self, audio, frequency, bandwidth, gain_dB):
         TEMP = folder_paths.get_temp_directory()
@@ -452,7 +395,7 @@ class SaltAudioFrequencyBoost:
                 
             return (modified_audio_data,)
         except subprocess.CalledProcessError as e:
-            print(f"Failed to apply frequency boost with FFmpeg: {e}")
+            logger.error(f"Failed to apply frequency boost with FFmpeg: {e}")
             if os.path.exists(temp_input_path):
                 os.unlink(temp_input_path)
             if os.path.exists(temp_output_path):
@@ -474,7 +417,7 @@ class SaltAudioFrequencyCutoff:
     RETURN_TYPES = ("AUDIO",)
     RETURN_NAMES = ("audio",)
     FUNCTION = "apply_cutoff"
-    CATEGORY = "SALT/Audio/Effect"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Audio/Effect"
 
     def apply_cutoff(self, audio, filter_type, cutoff_frequency):
         TEMP = folder_paths.get_temp_directory()
@@ -500,7 +443,7 @@ class SaltAudioFrequencyCutoff:
                 
             return (modified_audio_data,)
         except subprocess.CalledProcessError as e:
-            print(f"Failed to apply frequency cutoff with FFmpeg: {e}")
+            logger.error(f"Failed to apply frequency cutoff with FFmpeg: {e}")
             if os.path.exists(temp_input_path):
                 os.unlink(temp_input_path)
             if os.path.exists(temp_output_path):
@@ -527,7 +470,7 @@ class SaltAudioVisualizer:
     OUTPUT_NODE = True
 
     FUNCTION = "visualize_audio"
-    CATEGORY = "SALT/Audio/Util"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Audio/Util"
 
     def visualize_audio(self, audio, frame_rate, start_frame=0, end_frame=-1):
         TEMP = folder_paths.get_temp_directory()
@@ -602,7 +545,7 @@ class SaltAudioStereoSplitter:
     RETURN_TYPES = ("AUDIO", "AUDIO")
     RETURN_NAMES = ("left_channel_mono", "right_channel_mono")
     FUNCTION = "split_stereo_to_mono"
-    CATEGORY = "SALT/Audio/Process"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Audio/Process"
 
     def split_stereo_to_mono(self, audio):
         stereo_audio_segment = AudioSegment.from_file(io.BytesIO(audio), format="wav")
@@ -634,7 +577,7 @@ class SaltAudioMixer:
     RETURN_TYPES = ("AUDIO",)
     RETURN_NAMES = ("mixed_audio",)
     FUNCTION = "mix_audios"
-    CATEGORY = "SALT/Audio/Process"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Audio/Process"
 
     def mix_audios(self, audio_a, audio_b, mix_time_seconds):
         audio_segment_1 = AudioSegment.from_file(io.BytesIO(audio_a), format="wav")
@@ -662,7 +605,7 @@ class SaltAudioStitcher:
     RETURN_TYPES = ("AUDIO",)
     RETURN_NAMES = ("stitched_audio",)
     FUNCTION = "stitch_audios"
-    CATEGORY = "SALT/Audio/Process"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Audio/Process"
 
     def stitch_audios(self, audio_a, audio_b, silent_transition_seconds=0.0):
         audio_segment_1 = AudioSegment.from_file(io.BytesIO(audio_a), format="wav")
@@ -693,7 +636,7 @@ class SaltAudioLDM2LoadModel:
     RETURN_NAMES = ("audioldm2_model", )
 
     FUNCTION = "load_model"
-    CATEGORY = "SALT/Audio/AudioLDM2"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Audio/AudioLDM2"
 
     def load_model(self, model, device="cuda"):
         models = folder_paths.models_dir
@@ -724,7 +667,7 @@ class SaltAudioLDM2Sampler:
     RETURN_NAMES = ("audio", )
 
     FUNCTION = "sample"
-    CATEGORY = "SALT/Audio/AudioLDM2"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Audio/AudioLDM2"
 
     def sample(self, audioldm2_model, **kwargs):
         generator = torch.Generator("cuda").manual_seed(kwargs.get("seed", 0))
@@ -765,7 +708,7 @@ class SaltAudioSimpleReverb:
     RETURN_TYPES = ("AUDIO",)
     RETURN_NAMES = ("audio",)
     FUNCTION = "apply_reverb"
-    CATEGORY = "SALT/Audio/Effect"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Audio/Effect"
 
     def apply_reverb(self, audio, reverb_level, decay):
         original = AudioSegment.from_file(io.BytesIO(audio), format="wav")
@@ -795,7 +738,7 @@ class SaltAudioSimpleEcho:
     RETURN_TYPES = ("AUDIO",)
     RETURN_NAMES = ("audio",)
     FUNCTION = "apply_echo"
-    CATEGORY = "SALT/Audio/Effect"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Audio/Effect"
 
     def apply_echo(self, audio, times, delay_ms, decay_factor):
         original = AudioSegment.from_file(io.BytesIO(audio), format="wav")
@@ -829,7 +772,7 @@ class SaltAudioNormalize:
     RETURN_TYPES = ("AUDIO",)
     RETURN_NAMES = ("audio",)
     FUNCTION = "normalize_audio"
-    CATEGORY = "SALT/Audio/Process"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Audio/Process"
 
     def normalize_audio(self, audio):
         audio_segment = AudioSegment.from_file(io.BytesIO(audio), format="wav")
@@ -851,7 +794,7 @@ class SaltAudioBandpassFilter:
     RETURN_TYPES = ("AUDIO",)
     RETURN_NAMES = ("audio",)
     FUNCTION = "apply_bandpass_filter"
-    CATEGORY = "SALT/Audio/Effect"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Audio/Effect"
 
     def apply_bandpass_filter(self, audio, low_cutoff_frequency, high_cutoff_frequency):
         audio_segment = AudioSegment.from_file(io.BytesIO(audio), format="wav")
@@ -875,7 +818,7 @@ class SaltAudioCompressor:
     RETURN_TYPES = ("AUDIO",)
     RETURN_NAMES = ("audio",)
     FUNCTION = "compress_audio"
-    CATEGORY = "SALT/Audio/Process"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Audio/Process"
 
     def compress_audio(self, audio, threshold_dB, ratio, attack_ms, release_ms):
         TEMP = folder_paths.get_temp_directory()
@@ -923,7 +866,7 @@ class SaltAdvancedAudioCompressor:
     RETURN_TYPES = ("AUDIO",)
     RETURN_NAMES = ("audio",)
     FUNCTION = "compress_detailed_audio"
-    CATEGORY = "SALT/Audio/Process"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Audio/Process"
 
     def compress_detailed_audio(self, audio, threshold_dB, ratio, attack_ms, release_ms, makeup_gain):
         TEMP = folder_paths.get_temp_directory()
@@ -968,7 +911,7 @@ class SaltAudioDeesser:
     RETURN_TYPES = ("AUDIO",)
     RETURN_NAMES = ("audio",)
     FUNCTION = "apply_deesser"
-    CATEGORY = "SALT/Audio/Effect"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Audio/Effect"
 
     def apply_deesser(cls, audio, intensity, amount, frequency_keep):
         TEMP = folder_paths.get_temp_directory()
@@ -1023,7 +966,7 @@ class SaltAudioNoiseReductionSpectralSubtraction:
     RETURN_TYPES = ("AUDIO",)
     RETURN_NAMES = ("audio",)
     FUNCTION = "reduce_noise_spectral"
-    CATEGORY = "SALT/Audio/Effect"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Audio/Effect"
 
     def reduce_noise_spectral(cls, audio, noise_floor):
         TEMP = folder_paths.get_temp_directory()
@@ -1065,7 +1008,7 @@ class SaltAudioPitchShift:
     RETURN_TYPES = ("AUDIO",)
     RETURN_NAMES = ("audio",)
     FUNCTION = "shift_pitch"
-    CATEGORY = "SALT/Audio/Effect"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Audio/Effect"
 
     def shift_pitch(cls, audio, semitones):
         TEMP = tempfile.gettempdir()
@@ -1086,7 +1029,7 @@ class SaltAudioPitchShift:
         try:
             subprocess.run(command, check=True)
         except subprocess.CalledProcessError as e:
-            print(f"Error during pitch shifting: {e}")
+            logger.error(f"Error during pitch shifting: {e}")
             os.remove(temp_input_path)
             if os.path.exists(temp_output_path):
                 os.remove(temp_output_path)
@@ -1117,7 +1060,7 @@ class SaltAudioPitchShiftScheduled:
     RETURN_TYPES = ("AUDIO",)
     RETURN_NAMES = ("audio",)
     FUNCTION = "shift_pitch_advanced"
-    CATEGORY = "SALT/Audio/Effect"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Audio/Effect"
 
     @staticmethod
     def shift_pitch_advanced(audio_bytes, schedule, interpolate=False):
@@ -1181,7 +1124,7 @@ class SaltAudioPitchShiftV2:
     RETURN_TYPES = ("AUDIO",)
     RETURN_NAMES = ("audio",)
     FUNCTION = "shift_pitch_advanced"
-    CATEGORY = "SALT/Audio/Effect"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Audio/Effect"
 
     @staticmethod
     def shift_pitch_advanced(audio_bytes, schedule, interpolate=False):
@@ -1245,7 +1188,7 @@ class SaltAudioTrim:
     RETURN_TYPES = ("AUDIO",)
     RETURN_NAMES = ("audio",)
     FUNCTION = "trim_audio"
-    CATEGORY = "SALT/Audio/Process"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Audio/Process"
 
     def trim_audio(cls, audio, start_time_seconds, end_time_seconds):
         audio_segment = AudioSegment.from_file(io.BytesIO(audio), format="wav")
@@ -1266,7 +1209,7 @@ class SaltAudioRepeat:
     RETURN_TYPES = ("AUDIO",)
     RETURN_NAMES = ("audio",)
     FUNCTION = "loop_audio"
-    CATEGORY = "SALT/Audio/Process"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Audio/Process"
 
     def loop_audio(cls, audio, repeat_times):
         audio_segment = AudioSegment.from_file(io.BytesIO(audio), format="wav")
@@ -1287,7 +1230,7 @@ class SaltAudioPlaybackRate:
     RETURN_TYPES = ("AUDIO",)
     RETURN_NAMES = ("audio",)
     FUNCTION = "adjust_speed"
-    CATEGORY = "SALT/Audio/Process"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Audio/Process"
 
     def adjust_speed(cls, audio, speed_factor):
         audio_segment = AudioSegment.from_file(io.BytesIO(audio), format="wav")
@@ -1308,7 +1251,7 @@ class SaltAudioInversion:
     RETURN_TYPES = ("AUDIO",)
     RETURN_NAMES = ("audio",)
     FUNCTION = "invert_audio"
-    CATEGORY = "SALT/Audio/Process"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Audio/Process"
 
     def invert_audio(cls, audio):
         audio_segment = AudioSegment.from_file(io.BytesIO(audio), format="wav")
@@ -1331,7 +1274,7 @@ class SaltAudioBassBoost:
     RETURN_TYPES = ("AUDIO",)
     RETURN_NAMES = ("audio",)
     FUNCTION = "boost_bass"
-    CATEGORY = "SALT/Audio/Effect"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Audio/Effect"
 
     def boost_bass(self, audio, cutoff_freq, boost_dB):
         original = AudioSegment.from_file(io.BytesIO(audio), format="wav")
@@ -1359,7 +1302,7 @@ class SaltAudioTrebleBoost:
     RETURN_TYPES = ("AUDIO",)
     RETURN_NAMES = ("audio",)
     FUNCTION = "treble_bass"
-    CATEGORY = "SALT/Audio/Effect"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Audio/Effect"
 
     def treble_bass(self, audio, cutoff_freq, boost_dB):
         original = AudioSegment.from_file(io.BytesIO(audio), format="wav")
@@ -1386,7 +1329,7 @@ class SaltAudioStereoMerge:
     RETURN_TYPES = ("AUDIO",)
     RETURN_NAMES = ("audio",)
     FUNCTION = "merge_stereo"
-    CATEGORY = "SALT/Audio/Effect"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Audio/Effect"
 
     def merge_stereo(self, audio_a, audio_b):
         segment_a = AudioSegment.from_file(io.BytesIO(audio_a), format="wav")

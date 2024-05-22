@@ -7,11 +7,11 @@ import pilgram
 
 from PIL import Image, ImageChops, ImageDraw, ImageEnhance, ImageFilter
 
-from ..modules.noise import VoronoiNoise, PerlinPowerFractalNoise, DisplacementLayer
-from ..modules.utils import pil2tensor, pil2mask, tensor2pil, mask2pil
-
 from comfy.utils import ProgressBar
 
+from .. import MENU_NAME, SUB_MENU_NAME, logger
+from ..modules.noise import VoronoiNoise, PerlinPowerFractalNoise, DisplacementLayer
+from ..modules.utils import pil2tensor, pil2mask, tensor2pil, mask2pil
 from ..modules.transform import (
     generate_frame, 
     movement_modes, 
@@ -63,7 +63,7 @@ class OPACTransformImages:
     RETURN_TYPES = ("IMAGE", "MASK")
     RETURN_NAMES = ("images", "masks")
 
-    CATEGORY = "SALT/Animation/Transform"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Animation/Transform"
     FUNCTION = "transform"
 
     def transform(
@@ -140,8 +140,8 @@ class OPACTransformImages:
         
         elapsed_time = time.time() - start_time
         
-        print("Frames generated.")
-        print(f"Transform Animation Completed in {elapsed_time:.2f} seconds")
+        logger.info("Frames generated.")
+        logger.info(f"Transform Animation Completed in {elapsed_time:.2f} seconds")
 
         return (torch.cat(frames, dim=0), torch.cat(masks, dim=0))
 
@@ -166,7 +166,7 @@ class SaltScheduledImageAdjust:
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "images_adjust"
 
-    CATEGORY = "SALT/Scheduling/Image"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Scheduling/Image"
 
     def float_value(self, adj_list, idx):
         if isinstance(adj_list, list) and adj_list:
@@ -259,7 +259,7 @@ class SaltScheduledShapeTransformation:
     RETURN_TYPES = ("IMAGE", )
     RETURN_NAMES = ("images", )
     FUNCTION = "transform_shape"
-    CATEGORY = "SALT/Scheduling/Image"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Scheduling/Image"
 
     def apply_multiply_operation(self, initial_value, schedule, frame_idx):
         factor = schedule[min(frame_idx, len(schedule) - 1)]
@@ -348,7 +348,7 @@ class SaltScheduledVoronoiNoise:
     RETURN_NAMES = ("images", "batch_size")
 
     FUNCTION = "generate"
-    CATEGORY = "SALT/Scheduling/Image"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Scheduling/Image"
 
     def generate(self, batch_size, width, height, distance_metric="euclidean", x_schedule=[0], y_schedule=[0], z_schedule=[0], scale_schedule=[1.0], detail_schedule=[100], randomness_schedule=[1], seed_schedule=[0], device="cuda"):
         voronoi = VoronoiNoise(width=width, height=height, scale=scale_schedule, detail=detail_schedule, seed=seed_schedule, 
@@ -385,7 +385,7 @@ class SaltScheduledPerlinPowerFractalNoise:
     RETURN_NAMES = ("images", "batch_size")
 
     FUNCTION = "generate"
-    CATEGORY = "SALT/Scheduling/Image"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Scheduling/Image"
 
     def generate(self, batch_size, width, height, scale_schedule=[1.0], octaves_schedule=[4], persistence_schedule=[0.5], lacunarity_schedule=[2.0], exponent_schedule=[1.0], seed_schedule=[0], clamp_min_schedule=[-0.5], clamp_max_schedule=[1.5], device="cuda"):
         octaves_schedule = [int(octave) for octave in octaves_schedule]
@@ -424,7 +424,7 @@ class SaltScheduledImageDisplacement:
     RETURN_NAMES = ("images",)
 
     FUNCTION = "apply_displacement"
-    CATEGORY = "SALT/Scheduling/Image"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Scheduling/Image"
 
     def apply_displacement(self, images, displacement_images, amplitude_schedule=None, angle_schedule=None):
         batch_size, height, width, _ = images.shape
@@ -473,7 +473,7 @@ class SaltScheduledBinaryComparison:
     RETURN_NAMES = ("images",)
 
     FUNCTION = "binary_threshold"
-    CATEGORY = "SALT/Scheduling/Image"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Scheduling/Image"
 
     def binary_threshold(self, images, comparison_schedule, epsilon_schedule=[0.1], use_epsilon=True):
         batch_size = images.shape[0]
@@ -536,7 +536,7 @@ class SaltImageComposite:
     RETURN_TYPES = ("IMAGE",)
     RETURN_NAMES = ("images",)
     FUNCTION = "blend"
-    CATEGORY = f"SALT/Scheduling/Image"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Scheduling/Image"
 
     def blend(self, images_a, images_b, mode, blend_schedule=[1.0], masks=None):
         blended_images = []
@@ -589,7 +589,7 @@ class SaltFilmicTransitions:
     RETURN_NAMES = ("images",)
 
     FUNCTION = "generate_transition"
-    CATEGORY = "SALT/Scheduling/Image"
+    CATEGORY = f"{MENU_NAME}/{SUB_MENU_NAME}/Scheduling/Image"
 
     def generate_transition(self, images_a, images_b, mode, transition_frames, mask_blur_schedule=[0]):
         mask_blur_schedule = [float(val) for val in mask_blur_schedule]
