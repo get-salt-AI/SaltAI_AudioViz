@@ -5,6 +5,8 @@ from PIL import Image
 import subprocess
 import shutil
 
+from .. import logger
+
 def tensor2pil(x):
     return Image.fromarray(np.clip(255. * x.cpu().numpy().squeeze(), 0, 255).astype(np.uint8))
     
@@ -14,7 +16,7 @@ def pil2tensor(x):
 def mask2pil(x):
     x = 1. - x
     if x.ndim != 3:
-        print(f"Expected a 3D tensor ([N, H, W]). Got {x.ndim} dimensions.")
+        logger.warning(f"Expected a 3D tensor ([N, H, W]). Got {x.ndim} dimensions.")
         x = x.unsqueeze(0) 
     x_np = x.cpu().numpy()
     if x_np.ndim != 3:
@@ -37,7 +39,7 @@ def ffmpeg_suitability(path):
     try:
         version = subprocess.run([path, "-version"], check=True, capture_output=True).stdout.decode("utf-8")
     except Exception as e:
-        print(f"Error checking ffmpeg version at {path}: {e}")
+        logger.error(f"Error checking ffmpeg version at {path}: {e}")
         return 0
     score = 0
     # Rough layout of the importance of various features
@@ -60,7 +62,7 @@ def find_ffmpeg():
         from imageio_ffmpeg import get_ffmpeg_exe
         ffmpeg_paths.append(get_ffmpeg_exe())
     except ImportError:
-        print("imageio_ffmpeg is not available, trying system ffmpeg")
+        logger.warning("imageio_ffmpeg is not available, trying system ffmpeg")
 
     # Check for system ffmpeg
     system_ffmpeg = shutil.which("ffmpeg")
@@ -68,13 +70,13 @@ def find_ffmpeg():
         ffmpeg_paths.append(system_ffmpeg)
 
     if not ffmpeg_paths:
-        print("No valid ffmpeg found.")
+        logger.error("No valid ffmpeg found.")
         return None
 
     # Select the ffmpeg path with the highest suitability score
     ffmpeg_path = max(ffmpeg_paths, key=ffmpeg_suitability)
     if ffmpeg_path:
-        print(f"Using ffmpeg at {ffmpeg_path}")
+        logger.info(f"Using ffmpeg at {ffmpeg_path}")
     return ffmpeg_path
 
 

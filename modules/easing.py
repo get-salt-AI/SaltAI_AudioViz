@@ -108,7 +108,6 @@ def safe_eval(expr, t_val=1, end_frame=1, custom_vars={}):
     except Exception as e:
         raise ValueError(f"Error evaluating expression '{expr}': {str(e)}")
 
-
 class KeyframeScheduler:
     def __init__(self, end_frame=0, custom_vars={}):
         self.keyframes = []
@@ -118,38 +117,40 @@ class KeyframeScheduler:
     def parse_keyframes(self, schedule_str):
         self.keyframes = []
         pattern = re.compile(r'\[(.*?)\]')
-        for segment in schedule_str.split(", "):
-            index_expr, value_expr = segment.split(":")
-            index_expr = index_expr.strip()
-            value_expr = value_expr.strip()
+        
+        schedule_str = schedule_str.replace('\n', ' ').replace('\r', ' ').strip()
+        segments = [segment.strip() for segment in schedule_str.split(",")]
+        for segment in segments:
+            if segment.strip():
+                index_expr, value_expr = [expr.strip() for expr in segment.split(":")]
 
-            # Evaluate expressions within brackets
-            if pattern.match(index_expr):
-                expr = pattern.search(index_expr).group(1)
-                try:
-                    index = int(safe_eval(expr, 0, self.end_frame, self.custom_vars))
-                except Exception as e:
-                    raise ValueError(f"Error evaluating index expression '{expr}': {str(e)}")
-            elif index_expr == "end_frame" or index_expr == "z":
-                if self.end_frame != 0:
-                    index = self.end_frame - 1
+                if pattern.match(index_expr):
+                    expr = pattern.search(index_expr).group(1)
+                    try:
+                        index = int(safe_eval(expr, 0, self.end_frame, self.custom_vars))
+                    except Exception as e:
+                        raise ValueError(f"Error evaluating index expression '{expr}': {str(e)}")
+                elif index_expr == "end_frame" or index_expr == "z":
+                    if self.end_frame != 0:
+                        index = self.end_frame - 1
+                    else:
+                        raise ValueError("`end_frame` must be specified and greater than 0 to use 'z'.")
                 else:
-                    raise ValueError("`end_frame` must be specified and greater than 0 to use 'z'.")
-            else:
-                index = int(index_expr)
+                    index = int(index_expr)
 
-            if value_expr.startswith("(") and value_expr.endswith(")"):
-                value_expr = value_expr[1:-1]
+                if value_expr.startswith("(") and value_expr.endswith(")"):
+                    value_expr = value_expr[1:-1]
 
-            self.keyframes.append((index, value_expr))
+                self.keyframes.append((index, value_expr))
 
     def is_numeric(self, val):
+        if isinstance(val, (int, float)):
+            return True
         try:
-            return True if float(val) or float(val) == 0 or float(val) == 0.0 else False
-        except Exception:
-            if re.match(r"^\s*[+-]?\d+(\.\d+)?\s*$", val):
-                return True
-        return False
+            float(val)
+            return True
+        except (ValueError, TypeError):
+            return False
 
     def generate_schedule(self, schedule_str, easing_mode='None', ndigits=2):
         self.parse_keyframes(schedule_str)
@@ -167,14 +168,21 @@ class KeyframeScheduler:
             end_val = safe_eval(self.keyframes[i+1][1], end_index, self.end_frame, self.custom_vars) if i+1 < len(self.keyframes) else start_val
 
             start_numeric = self.is_numeric(start_expr)
-            end_numeric = self.is_numeric(self.keyframes[-1][0])
+            end_numeric = self.is_numeric(self.keyframes[i+1][1]) if i+1 < len(self.keyframes) else True
 
-            for j in range(start_index, end_index):
-                if start_numeric and end_numeric:
-                    t = (j - start_index) / (end_index - start_index)
-                    schedule[j] = start_val + (end_val - start_val) * t
-                else:
-                    schedule[j] = safe_eval(start_expr, j, self.end_frame, self.custom_vars)
+            if start_index == end_index:
+                schedule[start_index] = start_val
+            elif start_numeric and end_numeric:
+                start_val = float(start_val)
+                end_val = float(end_val)
+                for j in range(start_index, end_index):
+                    t = j
+                    progress = (j - start_index) / (end_index - start_index) if end_index != start_index else 0
+                    schedule[j] = start_val + (end_val - start_val) * progress
+            else:
+                for j in range(start_index, end_index):
+                    t = j
+                    schedule[j] = safe_eval(start_expr, t, self.end_frame, self.custom_vars)
 
         if easing_mode != "None":
             schedule = apply_easing(schedule, easing_mode)
@@ -182,4 +190,3 @@ class KeyframeScheduler:
         schedule = np.round(schedule, ndigits)
 
         return schedule.tolist()
-    

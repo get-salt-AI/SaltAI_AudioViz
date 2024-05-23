@@ -1,4 +1,4 @@
-# SaltAI_AudioViz
+# Salt AI AudioViz
 SaltAI AudioViz contains ComfyUI nodes for generating complex audio reactive visualizations.
 
 🔥 **May 9, 2024**: Inital Release of AudioViz, more information can be found [here]([https://github.com/get-salt-AI/SaltAI_AudioViz](https://docs.getsalt.ai/md/SaltAI_AudioViz/)).
@@ -22,13 +22,16 @@ Follow these steps to set up the environment:
    - **ComfyUI Portable (if applicable):**
      `path\to\ComfyUI\python_embeded\python.exe -m pip install -r requirements.txt`
 
-
-## ComfyUI Integration
+## ComfyUI Manager
 
 - Ensure ComfyUI is installed.
-- Open up ComfyUI and search for the audio visualization plugin "SaltAI_AudioViz".
-- Install the plugin.
-- Restart the server and perform a Ctrl+F5 hard refresh in the browser.
+- Open up ComfyUI Manger and search for "SaltAI_AudioViz".
+- Install the custom node.
+- Restart ComfyUI, and perform a Ctrl+F5 hard refresh in the browser.
+
+## Examples
+
+[![AudioViz Examples Workflow](./examples/SaltAudioViz_examples.png)](./examples/SaltAudioViz_examples.json)
 
 ## Troubleshooting
 
