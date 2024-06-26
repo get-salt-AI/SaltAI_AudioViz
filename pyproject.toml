@@ -10,6 +10,6 @@ Repository = "https://github.com/get-salt-AI/SaltAI_AudioViz"
 #  Used by Comfy Registry https://comfyregistry.org
 
 [tool.comfy]
-PublisherId = ""
+PublisherId = "saltai"
 DisplayName = "SaltAI_AudioViz"
 Icon = ""
