@@ -1,0 +1,15 @@
+[project]
+name = "saltai_audioviz"
+description = "SaltAI AudioViz contains ComfyUI nodes for generating complex audio reactive visualizations"
+version = "1.0.0"
+license = "LICENSE"
+dependencies = ["diffusers", "librosa", "matplotlib", "opencv-python", "pillow", "pydub", "scipy", "tqdm", "pilgram", "numexpr"]
+
+[project.urls]
+Repository = "https://github.com/get-salt-AI/SaltAI_AudioViz"
+#  Used by Comfy Registry https://comfyregistry.org
+
+[tool.comfy]
+PublisherId = ""
+DisplayName = "SaltAI_AudioViz"
+Icon = ""
