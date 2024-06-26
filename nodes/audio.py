@@ -116,7 +116,10 @@ class SaltLoadAudio:
 
         if manual_bpm <= 0:
             tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
-            bpm = tempo
+            if isinstance(tempo, np.ndarray):
+                bpm = float(tempo[0]) if tempo.size > 0 else 0.0
+            else:
+                bpm = tempo
         else:
             bpm = manual_bpm
 
