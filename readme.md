@@ -1,7 +1,7 @@
 # Salt AI AudioViz
 SaltAI AudioViz contains ComfyUI nodes for generating complex audio reactive visualizations.
 
-🔥 **May 9, 2024**: Inital Release of AudioViz, more information can be found [here]([https://github.com/get-salt-AI/SaltAI_AudioViz](https://docs.getsalt.ai/md/SaltAI_AudioViz/)).
+🔥 **May 9, 2024**: Inital Release of AudioViz, more information [can be found here](https://docs.getsalt.ai/md/SaltAI_AudioViz/).
 
 ## Installation Instructions
 
